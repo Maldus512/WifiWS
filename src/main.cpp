@@ -2,67 +2,87 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <html.h>
+#include <EEPROM.H>
+#include "mymem.h"
+#include "timers.h"
+#include "uart_rx_tx.h"
 
-
-
-/*
-const char *ssid = "HSW";
-const char *password = "zannazanna";*/
-
-const char *ssid = "WS2016";
-WiFiServer sockServer(8080);
-
-
-
-ESP8266WebServer server(80);
-
-void handleRoot() {
-  if (server.hasArg("ssid")) {
-    String nssid = server.arg("ssid");
-    String npass = server.arg("pass");
-    //Serial.println(nssid);
-    //Serial.println(npass);
-  }
-  server.send(200, "text/html", html);
-}
+const char *defaultSsid = "WS2016_3";
+bool haveSavedCredentials = false;
+char ssid[32];
+char pass[32];
+int old_status;
 
 
 void setup() {
-
-  delay(1000);
-
-  Serial.begin(115200);
-
-  Serial.println();
-
-  //Serial.println("Configuring wifi...");
-  WiFi.mode(WIFI_OFF);  
+  WiFi.mode(WIFI_OFF);
   delay(200);
 
-  /* You can remove the password parameter if you want the AP to be open. */
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(ssid);
- /* WiFi.begin(ssid,password);
+  EEPROM.begin(512);
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }*/
+  baud = loadBaudRate();
+  if (baud < 0) {
+    baud = 3;
+    saveBaudRate(baud);
+  }
 
-  IPAddress myIP = WiFi.softAPIP();
-  /*Serial.print("IP address: ");
-  Serial.println(myIP);
-    Serial.println("begin");*/
+  Serial.setRxBufferSize(1024);
+  Serial.begin(baudRates[baud]);
 
-  server.on("/", handleRoot);
-  server.begin();
+  haveSavedCredentials = savedCredentials();
+  if (haveSavedCredentials) {
+    for (int i = 0; i < 32; i++) {
+      ssid[i] = EEPROM.read(2+i);
+    }
+    ssid[31] = '\0';
+    for (int i = 0; i < 32; i++) {
+      pass[i] = EEPROM.read(65+i);
+    }
+    pass[31] = '\0';
+    min1AP(); 
+    //connect(ssid, pass, false);
+  } else {
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(defaultSsid);
 
-  sockServer.begin();
+    IPAddress myIP = WiFi.softAPIP();
+    delay(3*1000);
+    sendIP(myIP);
+    //Serial.println(myIP);
+
+    server.on("/", handleRoot);
+    server.on("/baud", handleBaud);
+    server.begin();
+
+    sockServer.begin();
+  }
+  old_status = WiFi.status();
 }
+
+int counter = 0;
 
 void loop() {
   WiFiClient client = sockServer.available();
   char recv;
+  if (tickOccured) {
+    tickOccured = false;
+    counter++;
+  }
+
+  if (counter > 60 && WiFi.getMode() == WIFI_AP && haveSavedCredentials) {
+    tickOccured = false;
+    counter = 0;
+    connect(ssid, pass, true);
+  }
+
+  if (old_status != WiFi.status()) {
+    if (WiFi.getMode() == WIFI_AP) {
+      sendIP(WiFi.softAPIP());
+    } else {
+      sendIP(WiFi.localIP());
+    }
+    old_status = WiFi.status();
+  }
 
   if (!client) {
     server.handleClient();
@@ -71,26 +91,43 @@ void loop() {
   }
 
   while (client.connected()) {
-    //Wait for data while managing stuff
-    if (!client.available() && !Serial.available()) {
-      server.handleClient();
-      delay(1);
-      continue;
-    }
-
+  //check UART for data
     if (client.available()) {
-      int x = client.available();
-      while (x-- > 0) {
-        recv = client.read();
-        Serial.write(recv);
-      }
+      size_t len = client.available();
+      uint8_t sbuf[len];
+      client.readBytes(sbuf, len);
+      Serial.write(sbuf, len);      
     }
 
-    if (Serial.available()) {
-      int x = Serial.available();
-      char buf[x];
-      Serial.readBytes(buf, x);
-      client.print(buf);
-    }
+  while (Serial.available()) {
+    size_t len = Serial.available();
+    uint8_t buf[len];
+
+    Serial.readBytes(buf, len);
+    client.write(buf, len);
   }
+  /*if (Serial.available()) {
+    uint8_t finalbuf[2500];
+    size_t index = 0;
+    int lenght = 7;
+    unsigned long timeout = millis();
+
+   //while(Serial.available()){
+   while(index <= lenght && millis()-timeout < 500){
+        size_t len = Serial.available();
+        if (len == 0) {
+          continue;
+        }
+        len = Serial.readBytes(finalbuf+index, len);
+        index += len;
+        if (index > 6 && lenght == 0) {
+          lenght = (finalbuf[5] << 8) | finalbuf[6];
+        }
+        timeout = millis();
+    }
+    client.write(&finalbuf[0], index);
+  }*/
+
+  }
+  client.stop();
 }
