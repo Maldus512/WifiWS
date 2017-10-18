@@ -8,6 +8,7 @@ extern ESP8266WebServer server;
 extern WiFiServer sockServer;
 extern int8_t baud;
 extern const int baudRates[BAUDRATES];
+extern const char *defaultSsid;
 
 void handleRoot();
 void handleBaud();

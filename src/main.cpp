@@ -7,7 +7,6 @@
 #include "timers.h"
 #include "uart_rx_tx.h"
 
-const char *defaultSsid = "WS2016_3";
 bool haveSavedCredentials = false;
 char ssid[32];
 char pass[32];
@@ -22,7 +21,7 @@ void setup() {
 
   baud = loadBaudRate();
   if (baud < 0) {
-    baud = 3;
+    baud = 8;
     saveBaudRate(baud);
   }
 

@@ -7,6 +7,7 @@
 #include "timers.h"
 #include "uart_rx_tx.h"
 
+const char *defaultSsid = "WS2016_3";
 
 ESP8266WebServer server(80);
 WiFiServer sockServer(8080);
@@ -130,7 +131,7 @@ void connect(char *ssid, char *pass, bool keepTrying) {
 
 IPAddress min1AP() {
     WiFi.mode(WIFI_AP);
-    WiFi.softAP("WS2016");
+    WiFi.softAP(defaultSsid);
     counter = 0;
     user_init();
   server.on("/", handleRoot);
