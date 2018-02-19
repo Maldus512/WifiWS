@@ -7,7 +7,7 @@
 #include "timers.h"
 #include "uart_rx_tx.h"
 
-const char *defaultSsid = "WS2016_3";
+const char *defaultSsid = "WS2016_test";
 
 ESP8266WebServer server(80);
 WiFiServer sockServer(8080);
@@ -130,19 +130,28 @@ void connect(char *ssid, char *pass, bool keepTrying) {
 }
 
 IPAddress min1AP() {
+    int node = loadNodeAddress();
+    byte mac[6];
+    char ssid[33];
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(defaultSsid);
+    if (node >= 0) {
+        sprintf(ssid, "MSG-WiFi#%03i", node);
+    } else {
+        WiFi.macAddress(mac);
+        sprintf(ssid, "MSG-WiFi#%02X:%02X:%02X:%02X:%02X:%02X", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+    }
+    WiFi.softAP(ssid);
     counter = 0;
     user_init();
-  server.on("/", handleRoot);
-  server.on("/baud", handleBaud);
-  server.begin();
+    server.on("/", handleRoot);
+    server.on("/baud", handleBaud);
+    server.begin();
 
-  sockServer.begin();
-  IPAddress myIP = WiFi.softAPIP();
-  delay(1000*3);
-  sendIP(myIP);
-  return myIP;
+    sockServer.begin();
+    IPAddress myIP = WiFi.softAPIP();
+    delay(1000*3);
+    sendIP(myIP);
+    return myIP;
 }
 
 void handleRoot() {

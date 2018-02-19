@@ -1,7 +1,9 @@
 
 
 #include <ESP8266WiFi.h>
+#include "uart_rx_tx.h"
 
+int node_number = 0x0;
 
 unsigned long int crc_32b(char *buffer, int length){
     int i, j;
@@ -82,5 +84,5 @@ void sendIP(IPAddress ip) {
   ipAdd[1] = ipComponent(ip.toString(), 1);
   ipAdd[2] = ipComponent(ip.toString(), 2);
   ipAdd[3] = ipComponent(ip.toString(), 3);
-  UARTmessage(0xEE00, ipAdd, 4, 7);
+  UARTmessage(0xEE00, ipAdd, 4, 255);
 }
