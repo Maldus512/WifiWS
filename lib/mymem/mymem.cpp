@@ -53,19 +53,3 @@ void saveCredentials(char* ssid, char* pass) {
     EEPROM.commit();
     delay(200);
 }
-
-
-void saveNodeAddress(int8_t addr) {
-    EEPROM.write(CHECKADDR_NODE, 0xAA);
-    EEPROM.write(NODEADDR, addr);
-    EEPROM.commit();
-    delay(200);
-}
-
-int loadNodeAddress() {
-    if (EEPROM.read(CHECKADDR_NODE) == 0xAA) {
-        return EEPROM.read(NODEADDR);
-    } else {
-        return -1;
-    }
-}

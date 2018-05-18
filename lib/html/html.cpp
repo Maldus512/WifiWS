@@ -7,8 +7,6 @@
 #include "timers.h"
 #include "uart_rx_tx.h"
 
-const char *defaultSsid = "WS2016_test";
-
 ESP8266WebServer server(80);
 WiFiServer sockServer(8080);
 
@@ -99,6 +97,7 @@ void scanNetworks() {
   Serial.println("");
 }
 
+extern int node;
 
 void connect(char *ssid, char *pass, bool keepTrying) {
   WiFi.mode(WIFI_OFF);
@@ -114,33 +113,31 @@ void connect(char *ssid, char *pass, bool keepTrying) {
     //Serial.print(".");
     i++;
   }
+  //Serial.print("connected");
 
   IPAddress myIP;
 
   if (WiFi.status() != WL_CONNECTED ) {
-    myIP = min1AP();
+    node = askNodeAddress();
+    myIP = min1AP(node);
   } else {
     myIP = WiFi.localIP();
     WiFi.setAutoReconnect(true);
     sendIP(myIP);
   }
-
-  //Serial.print("IP address: ");
-  //Serial.println(myIP);
 }
 
-IPAddress min1AP() {
-    int node = loadNodeAddress();
+IPAddress min1AP(int n) {
     byte mac[6];
-    char ssid[33];
+    char APssid[33];
     WiFi.mode(WIFI_AP);
-    if (node >= 0) {
-        sprintf(ssid, "MSG-WiFi#%03i", node);
+    if (n >= 0) {
+        sprintf(APssid, "MSG-WiFi # %03i", n);
     } else {
         WiFi.macAddress(mac);
-        sprintf(ssid, "MSG-WiFi#%02X:%02X:%02X:%02X:%02X:%02X", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+        sprintf(APssid, "MSG-WiFi %02X:%02X:%02X:%02X:%02X:%02X", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
     }
-    WiFi.softAP(ssid);
+    WiFi.softAP(APssid);
     counter = 0;
     user_init();
     server.on("/", handleRoot);
@@ -159,12 +156,12 @@ void handleRoot() {
   if (server.hasArg("ssid")) {
     String nssid = server.arg("ssid");
     String npass = server.arg("pass");
-    char ssid[nssid.length()+1];
+    char ssid1[nssid.length()+1];
     char pass[npass.length()+1];
-    nssid.toCharArray(ssid, nssid.length() + 1);
+    nssid.toCharArray(ssid1, nssid.length() + 1);
     npass.toCharArray(pass, npass.length() + 1);
-    saveCredentials(ssid, pass);
-    connect(ssid, pass, false);
+    saveCredentials(ssid1, pass);
+    connect(ssid1, pass, false);
     return;
   } else if (server.hasArg("baud")) {
     String requestedBaud = server.arg("baud");

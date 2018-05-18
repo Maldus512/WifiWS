@@ -8,6 +8,3 @@ bool savedCredentials();
 
 int loadBaudRate();
 void saveBaudRate(int8_t);
-
-int loadNodeAddress();
-void saveNodeAddress(int8_t);
