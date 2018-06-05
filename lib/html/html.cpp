@@ -12,7 +12,6 @@ WiFiServer sockServer(8080);
 
 const int baudRates[BAUDRATES] = { 4800, 7200, 9600, 19200, 38400, 56000, 57600, 76800, 115200 };
 int8_t baud = 3;
-extern int counter;
 bool tryToConnect = false;
 
 
@@ -72,64 +71,70 @@ const char * baudPage = "<!DOCTYPE HTML> \\
 </body> \\
 </html>";
 
-
-void scanNetworks() {
-  int n = WiFi.scanNetworks();
-  int len = 0;
-  Serial.println("scan done");
-  if (n == 0) {
-    Serial.println("no networks found");
-  } else {
-    Serial.print(n);
-    Serial.println(" networks found");
-    for (int i = 0; i < n; ++i) {
-      // Print SSID and RSSI for each network found
-      Serial.print(i + 1);
-      Serial.print(": ");
-      Serial.print(WiFi.SSID(i));
-      Serial.print(" (");
-      Serial.print(WiFi.RSSI(i));
-      Serial.print(")");
-
-      len += WiFi.SSID(i).length();
-    }
-  }
-  Serial.println("");
-}
-
-extern int node;
-
-void connect(char *ssid, char *pass, bool keepTrying) {
+int connect(char *ssid, char *pass, int node, bool keepTrying) {
   WiFi.mode(WIFI_OFF);
-  delay(200);
+  delay(500);
   char emptyIP[] = {0x7F, 0x00, 0x00, 0x01};
   UARTmessage(0xEE00, emptyIP, 4, 0x07);
+
+  if (node < 0 || node > 255) {
+    node = 0;
+  }
+
   WiFi.mode(WIFI_STA);
+  WiFi.config(IPAddress(192,168,11,node), IPAddress(192,168,11,254),IPAddress(255,255,255,0));
   WiFi.begin(ssid,pass);
   int i = 0;
 
-  while (WiFi.status() != WL_CONNECTED && (i <30 || keepTrying) ) {
+  #ifdef DEBUG
+    Serial.print("Trying to connect to ");
+    Serial.println(ssid);
+    Serial.println(pass);
+  #endif
+
+  while (WiFi.status() != WL_CONNECTED && (i <20 || keepTrying) ) {
     delay(500);
-    //Serial.print(".");
+    #ifdef DEBUG
+    Serial.print(".");
+    #endif
     i++;
   }
-  //Serial.print("connected");
+  
 
   IPAddress myIP;
 
   if (WiFi.status() != WL_CONNECTED ) {
-    node = askNodeAddress();
-    myIP = min1AP(node);
-  } else {
-    myIP = WiFi.localIP();
-    WiFi.setAutoReconnect(true);
+    myIP = setupAccessPoint(node);
     sendIP(myIP);
+    #ifdef DEBUG
+    Serial.println("access point");
+    #endif
+    return -1;
+  } else {
+    WiFi.setAutoReconnect(true);
+    server.close();
+    //server.on("/", handleRoot);
+    server.on("/baud", handleBaud);
+    server.begin();
+    sockServer.close();
+    sockServer.begin();
+    myIP = WiFi.localIP();
+    #ifdef DEBUG
+    Serial.print("connected to ");
+    Serial.println(ssid);
+    Serial.print("with ip ");
+    Serial.println(myIP);
+    #endif
+    sendIP(myIP);
+    return 0;
   }
 }
 
-IPAddress min1AP(int n) {
+IPAddress setupAccessPoint(int n) {
     byte mac[6];
     char APssid[33];
+    WiFi.mode(WIFI_OFF);
+    delay(500);
     WiFi.mode(WIFI_AP);
     if (n >= 0) {
         sprintf(APssid, "MSG-WiFi # %03i", n);
@@ -138,9 +143,8 @@ IPAddress min1AP(int n) {
         sprintf(APssid, "MSG-WiFi %02X:%02X:%02X:%02X:%02X:%02X", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
     }
     WiFi.softAP(APssid);
-    counter = 0;
-    user_init();
-    server.on("/", handleRoot);
+    
+    //server.on("/", handleRoot);
     server.on("/baud", handleBaud);
     server.begin();
 
@@ -152,16 +156,17 @@ IPAddress min1AP(int n) {
 }
 
 void handleRoot() {
-  counter = 0;
+  int node;
   if (server.hasArg("ssid")) {
     String nssid = server.arg("ssid");
     String npass = server.arg("pass");
     char ssid1[nssid.length()+1];
-    char pass[npass.length()+1];
+    char pass1[npass.length()+1];
     nssid.toCharArray(ssid1, nssid.length() + 1);
-    npass.toCharArray(pass, npass.length() + 1);
-    saveCredentials(ssid1, pass);
-    connect(ssid1, pass, false);
+    npass.toCharArray(pass1, npass.length() + 1);
+    saveCredentials(ssid1, pass1);
+    node = askNodeAddress();
+    connect(ssid1, pass1,node,false);
     return;
   } else if (server.hasArg("baud")) {
     String requestedBaud = server.arg("baud");
@@ -186,7 +191,6 @@ void handleRoot() {
 }
 
 void handleBaud() {
-  counter = 0;
   server.send(200, "text/html", baudPage);
 }
 

@@ -8,16 +8,16 @@
 #include "uart_rx_tx.h"
 
 bool haveSavedCredentials = false;
+char default_SSID[] = "MSLaundry";
+char default_PASS[] = "@4SbMKe4";
 char SSID[32];
 char pass[32];
 int old_status;
-int node;
+int node, old_node;
 
 
 void setup() {
     node = -1;
-    byte mac[6];
-    char APssid[33];
     WiFi.mode(WIFI_OFF);
     delay(200);
 
@@ -34,9 +34,16 @@ void setup() {
     Serial.begin(baudRates[baud]);
     Serial.setTimeout(500);
 
-    //saveCredentials("HSW", "zannazanna");
-    haveSavedCredentials = savedCredentials();
+    // delete all existing WiFi stuff in EEPROM
+/*       WiFi.disconnect();
+       WiFi.softAPdisconnect();
+       WiFi.mode(WIFI_OFF);
+       delay(500);*/
+
+
+    haveSavedCredentials = false;//savedCredentials();
     node = askNodeAddress();
+    old_node = node;
     if (haveSavedCredentials) {
         for (int i = 0; i < 32; i++) {
             SSID[i] = EEPROM.read(2+i);
@@ -46,43 +53,32 @@ void setup() {
             pass[i] = EEPROM.read(65+i);
         }
         pass[31] = '\0';
-        min1AP(node); 
     } else {
-        WiFi.mode(WIFI_AP);
-        if (node >= 0) {
-                sprintf(APssid, "MSG-WiFi # %03i", node);
-        } else {
-            WiFi.macAddress(mac);
-            sprintf(APssid, "MSG-WiFi %02X:%02X:%02X:%02X:%02X:%02X", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-        }
-        WiFi.softAP(APssid);
-
-        IPAddress myIP = WiFi.softAPIP();
-        sendIP(myIP);
-
-        server.on("/", handleRoot);
-        server.on("/baud", handleBaud);
-        server.begin();
-
-        sockServer.begin();
+        memset(SSID, 0, 32);
+        memset(pass, 0, 32);
+        strcpy(SSID, default_SSID);
+        strcpy(pass, default_PASS);
     }
+    connect(SSID, pass, node, false);
     old_status = WiFi.status();
+    user_init();
 }
-
-int counter = 0;
 
 void loop() {
     WiFiClient client = sockServer.available();
-    char recv;
-    if (tickOccured) {
-        tickOccured = false;
-        counter++;
-    }
+    WiFiClient extra;
+    int node;
 
-    if (counter > 60 && WiFi.getMode() == WIFI_AP && haveSavedCredentials) {
+    /* Every n seconds try to connect */
+    if (tickOccured) {
+        if (WiFi.getMode() == WIFI_AP) {
+            //Serial.println("periodic connection try");
+            node = askNodeAddress();
+            old_node = node;
+            connect(SSID, pass, node, false);
+        }
         tickOccured = false;
-        counter = 0;
-        connect(SSID, pass, true);
+        return;
     }
 
     if (old_status != WiFi.status()) {
@@ -94,15 +90,30 @@ void loop() {
         old_status = WiFi.status();
     }
 
-    if (!client && (WiFi.getMode() == WIFI_AP || WiFi.status() == WL_CONNECTED)) {
+    if (!client) {// && (WiFi.getMode() == WIFI_AP || WiFi.status() == WL_CONNECTED)) {
         server.handleClient();
         if (Serial.available()) {
             uint8_t buf[LEN_LOCAL];
 
-            int len = Serial.readBytesUntil(0x04, buf, LEN_LOCAL);
+            int len;
+            
+            len = Serial.readBytesUntil(0x04, buf, LEN_LOCAL);
             buf[len] = 0x04;
             len++;
-            manageMessage((char*)buf, len);
+            if (manageMessage((char*)buf, len) == 0) {
+                delay(5);
+                node = askNodeAddress();
+                if (node != old_node) {
+                    old_node = node;
+                    WiFi.disconnect();
+                    connect(SSID, pass, node, false);
+                }
+            }
+
+            /* Se ci sono piu' comandi in coda, leggi solo il primo e butta tutti gli altri */
+            do {
+                len = Serial.readBytesUntil(0x04, buf, 2*LEN_LOCAL);
+            } while (Serial.available());
         }
         delay(1);
         return;
@@ -126,6 +137,11 @@ void loop() {
                 Serial.readBytes(buf, len);
                 // if the message is meant for me don't pass it
                 client.write(buf, len);
+            }
+
+            extra =  sockServer.available();
+            if (extra) {
+                extra.stop();
             }
         }
         //Serial.println("Client disconnesso");

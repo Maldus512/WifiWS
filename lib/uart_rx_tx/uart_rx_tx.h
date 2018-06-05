@@ -2,6 +2,7 @@
 #define _UART_H_
 
 #define IP_COMMAND      0xFFFA
+#define NODE_COMMAND    0xFFFB
 #define LEN_LOCAL       13
 #define REQUEST_NODE    0x0104
 #define ACK             0xF500

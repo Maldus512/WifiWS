@@ -14,5 +14,5 @@ void handleBaud();
 void scanNetworks();
 
 
-void connect(char *ssid, char* pass, bool keepTrying);
-IPAddress min1AP(int node);
+int connect(char *ssid, char* pass, int node, bool keepTrying);
+IPAddress setupAccessPoint(int n);

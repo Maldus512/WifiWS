@@ -18,5 +18,5 @@ void timerCallback(void *pArg) {
 void user_init(void) {
     tickOccured = false;
       os_timer_setfn(&myTimer, timerCallback, NULL);
-      os_timer_arm(&myTimer, 1000, true);
+      os_timer_arm(&myTimer, 60*1000, true);
 } // End of user_init

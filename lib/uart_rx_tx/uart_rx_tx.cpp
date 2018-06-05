@@ -1,7 +1,12 @@
 
-
 #include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
 #include "uart_rx_tx.h"
+#include <html.h>
+
+extern char SSID[32];
+extern char pass[32];
 
 int node_number = 0x0;
 
@@ -134,14 +139,20 @@ int manageMessage(char* msg, int len) {
 
 
 int askNodeAddress() {
+    #ifdef DEBUG
+    return 5;
+    #endif
     int node;
-    int count = 0, len=13, command = 0x0, data_len;
-    char buf[len];
+    int count = 0, len=0, command = 0x0, data_len;
+    char buf[13];
     unsigned long int crc;
     while (count++ <= 10) {
         UARTmessage(REQUEST_NODE, NULL, 0, 255);
 
-        len = Serial.readBytes(buf, len);
+        len = Serial.readBytesUntil(0x04, buf, 13);
+        buf[len] = 0x04;
+        len++;
+        
         if (len != 13) {
             delay(700);
             continue;
