@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
-#include <html.h>
+#include <connection.h>
 #include <EEPROM.H>
 #include "mymem.h"
 #include "timers.h"
@@ -41,9 +41,11 @@ void setup() {
        delay(500);*/
 
 
-    haveSavedCredentials = false;//savedCredentials();
     node = askNodeAddress();
     old_node = node;
+
+    #ifdef DEBUG
+    haveSavedCredentials = savedCredentials();
     if (haveSavedCredentials) {
         for (int i = 0; i < 32; i++) {
             SSID[i] = EEPROM.read(2+i);
@@ -54,11 +56,14 @@ void setup() {
         }
         pass[31] = '\0';
     } else {
+    #endif
         memset(SSID, 0, 32);
         memset(pass, 0, 32);
         strcpy(SSID, default_SSID);
         strcpy(pass, default_PASS);
+    #ifdef DEBUG
     }
+    #endif
     connect(SSID, pass, node, false);
     old_status = WiFi.status();
     user_init();
@@ -69,9 +74,9 @@ void loop() {
     WiFiClient extra;
     int node;
 
-    /* Every n seconds try to connect */
+    /* Every 60 seconds try to connect */
     if (tickOccured) {
-        if (WiFi.getMode() == WIFI_AP) {
+        if (WiFi.getMode() == WIFI_AP && !client) {
             //Serial.println("periodic connection try");
             node = askNodeAddress();
             old_node = node;
@@ -81,15 +86,8 @@ void loop() {
         return;
     }
 
-    if (old_status != WiFi.status()) {
-        if (WiFi.getMode() == WIFI_AP) {
-            sendIP(WiFi.softAPIP());
-        } else {
-            sendIP(WiFi.localIP());
-        }
-        old_status = WiFi.status();
-    }
-
+    /* Se un client non e' connesso gestisci il web server 
+        TODO: verificare che sia veramente utile: potremmo voler avere sempre lo stesso baudrate */
     if (!client) {// && (WiFi.getMode() == WIFI_AP || WiFi.status() == WL_CONNECTED)) {
         server.handleClient();
         if (Serial.available()) {
@@ -119,8 +117,8 @@ void loop() {
         return;
     }
 
+    /* Se il client e' connesso smetti di fare qualsiasi altra cosa e gestisci la connessione */
     if (client) {
-        //Serial.println("Client presente, chiedo dati");
         while (client.connected()) {
         //check UART for data
             if (client.available()) {
@@ -139,6 +137,7 @@ void loop() {
                 client.write(buf, len);
             }
 
+            /* Rifiuta ogni altra connessione */
             extra =  sockServer.available();
             if (extra) {
                 extra.stop();

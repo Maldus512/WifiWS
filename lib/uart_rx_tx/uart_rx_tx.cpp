@@ -2,8 +2,8 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
-#include "uart_rx_tx.h"
-#include <html.h>
+#include <uart_rx_tx.h>
+#include <connection.h>
 
 extern char SSID[32];
 extern char pass[32];
