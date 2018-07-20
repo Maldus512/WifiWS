@@ -3,9 +3,11 @@
 #include <ESP8266WebServer.h>
 #include <connection.h>
 #include <EEPROM.H>
+#include <ArduinoOTA.h>
 #include "mymem.h"
 #include "timers.h"
 #include "uart_rx_tx.h"
+#include "ota.h"
 
 bool haveSavedCredentials = false;
 char default_SSID[] = "MSLaundry";
@@ -45,6 +47,7 @@ void setup() {
     old_node = node;
 
     #ifdef DEBUG
+    Serial.println("Comincio");
     haveSavedCredentials = savedCredentials();
     if (haveSavedCredentials) {
         for (int i = 0; i < 32; i++) {
@@ -66,6 +69,7 @@ void setup() {
     #endif
     connect(SSID, pass, node, false);
     old_status = WiFi.status();
+    initOTA();
     user_init();
 }
 
@@ -86,10 +90,18 @@ void loop() {
         return;
     }
 
-    /* Se un client non e' connesso gestisci il web server 
+
+    /* Se un client non e' connesso gestisci il web server, i comandi
+        per il modulo e l'OTA
         TODO: verificare che sia veramente utile: potremmo voler avere sempre lo stesso baudrate */
     if (!client) {// && (WiFi.getMode() == WIFI_AP || WiFi.status() == WL_CONNECTED)) {
+        // Server
         server.handleClient();
+
+        //OTA
+        ArduinoOTA.handle();
+
+        // Comandi
         if (Serial.available()) {
             uint8_t buf[LEN_LOCAL];
 
