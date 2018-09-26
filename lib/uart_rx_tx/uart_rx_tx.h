@@ -13,5 +13,5 @@ void UARTmessage(int command, char *data, int length, char destination);
 uint8_t ipComponent(String ip, int n);
 void sendIP(IPAddress ip);
 int manageMessage(char* msg, int len);
-int askNodeAddress();
+byte askNodeAddress();
 #endif

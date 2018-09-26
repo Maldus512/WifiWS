@@ -138,7 +138,7 @@ int manageMessage(char* msg, int len) {
 }
 
 
-int askNodeAddress() {
+byte askNodeAddress() {
     #ifdef DEBUG
     return 5;
     #endif
@@ -184,5 +184,5 @@ int askNodeAddress() {
         delay(700);
     }
 
-    return -1;
+    return 0xFF;
 }

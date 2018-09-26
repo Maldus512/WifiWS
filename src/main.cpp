@@ -2,12 +2,15 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <connection.h>
-#include <EEPROM.H>
 #include <ArduinoOTA.h>
-#include "mymem.h"
 #include "timers.h"
 #include "uart_rx_tx.h"
 #include "ota.h"
+
+
+extern "C" {
+  #include<user_interface.h>
+}
 
 bool haveSavedCredentials = false;
 char default_SSID[] = "MSLaundry";
@@ -15,58 +18,32 @@ char default_PASS[] = "@4SbMKe4";
 char SSID[32];
 char pass[32];
 int old_status;
-int node, old_node;
+byte node, old_node;
 
 
 void setup() {
-    node = -1;
+    int baud;
+    node = 0;
     WiFi.mode(WIFI_OFF);
     delay(200);
 
-    EEPROM.begin(512);
-
-    baud = loadBaudRate();
-    if (baud < 0) {
-        baud = 8;
-        saveBaudRate(baud);
-    }
+    baud = 115200;
     delay(3*1000);
 
     Serial.setRxBufferSize(1024);
-    Serial.begin(baudRates[baud]);
+    Serial.begin(baud);
     Serial.setTimeout(500);
-
-    // delete all existing WiFi stuff in EEPROM
-/*       WiFi.disconnect();
-       WiFi.softAPdisconnect();
-       WiFi.mode(WIFI_OFF);
-       delay(500);*/
-
 
     node = askNodeAddress();
     old_node = node;
 
     #ifdef DEBUG
     Serial.println("Comincio");
-    haveSavedCredentials = savedCredentials();
-    if (haveSavedCredentials) {
-        for (int i = 0; i < 32; i++) {
-            SSID[i] = EEPROM.read(2+i);
-        }
-        SSID[31] = '\0';
-        for (int i = 0; i < 32; i++) {
-            pass[i] = EEPROM.read(65+i);
-        }
-        pass[31] = '\0';
-    } else {
     #endif
-        memset(SSID, 0, 32);
-        memset(pass, 0, 32);
-        strcpy(SSID, default_SSID);
-        strcpy(pass, default_PASS);
-    #ifdef DEBUG
-    }
-    #endif
+    memset(SSID, 0, 32);
+    memset(pass, 0, 32);
+    strcpy(SSID, default_SSID);
+    strcpy(pass, default_PASS);
     connect(SSID, pass, node, false);
     old_status = WiFi.status();
     initOTA();
@@ -76,28 +53,47 @@ void setup() {
 void loop() {
     WiFiClient client = sockServer.available();
     WiFiClient extra;
-    int node;
+    byte node;
+    int devices;
 
     /* Every 60 seconds try to connect */
     if (tickOccured) {
-        if (WiFi.getMode() == WIFI_AP && !client) {
-            //Serial.println("periodic connection try");
+        devices = wifi_softap_get_station_num();
+        //default_network_found = checkForHiddenNetwork(default_SSID);
+        if ((WiFi.getMode() == WIFI_AP 
+                || (WiFi.getMode() == WIFI_STA && WiFi.status() != WL_CONNECTED))
+                && !client && devices == 0 ) {
             node = askNodeAddress();
             old_node = node;
             connect(SSID, pass, node, false);
         }
         tickOccured = false;
+        #ifdef DEBUG
+        Serial.println("periodic connection attempt");
+        if (WiFi.getMode() == WIFI_AP) {
+            Serial.println("Access Point");
+        }
+        else if (WiFi.getMode() == WIFI_STA){
+            Serial.println("Station");
+        }
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("Connected");
+        }
+        else {
+            Serial.println("Not connected");
+        }
+        Serial.print("Connected devices: ");
+        Serial.println(devices);
+        Serial.print("default network found: ");
+        Serial.println(default_network_found);
+        #endif
         return;
     }
 
 
     /* Se un client non e' connesso gestisci il web server, i comandi
-        per il modulo e l'OTA
-        TODO: verificare che sia veramente utile: potremmo voler avere sempre lo stesso baudrate */
+        per il modulo e l'OTA */
     if (!client) {// && (WiFi.getMode() == WIFI_AP || WiFi.status() == WL_CONNECTED)) {
-        // Server
-        server.handleClient();
-
         //OTA
         ArduinoOTA.handle();
 
