@@ -84,8 +84,8 @@ void loop() {
         }
         Serial.print("Connected devices: ");
         Serial.println(devices);
-        Serial.print("default network found: ");
-        Serial.println(default_network_found);
+        //Serial.print("default network found: ");
+        //Serial.println(default_network_found);
         #endif
         return;
     }
